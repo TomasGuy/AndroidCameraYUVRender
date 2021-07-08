@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/release/arm64-v8a",
+  "command": "/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=aarch64-none-linux-android21 --gcc-toolchain=/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64 --sysroot=/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot  -Dyuvutil_EXPORTS  -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security   -O2 -DNDEBUG  -fPIC   -o src/main/cpp/yuvutil/CMakeFiles/yuvutil.dir/yuv_util.cpp.o -c /Users/Gain/job/code/github/AndroidCameraYUVRender/utils/src/main/cpp/yuvutil/yuv_util.cpp",
+  "file": "/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/src/main/cpp/yuvutil/yuv_util.cpp"
+}
+]

@@ -1,0 +1,3 @@
+# ninja log v5
+1	217	1625651229	src/main/cpp/yuvutil/CMakeFiles/yuvutil.dir/yuv_util.cpp.o	ab44882100622eea
+218	266	1625651229	../../../../build/intermediates/cmake/debug/obj/arm64-v8a/libyuvutil.so	3beccb501e2a5e7

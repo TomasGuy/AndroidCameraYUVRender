@@ -1,0 +1,5 @@
+/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/armeabi-v7a/src/main/cpp/yuvutil/CMakeFiles/rebuild_cache.dir
+/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/armeabi-v7a/src/main/cpp/yuvutil/CMakeFiles/edit_cache.dir
+/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/armeabi-v7a/src/main/cpp/yuvutil/CMakeFiles/yuvutil.dir
