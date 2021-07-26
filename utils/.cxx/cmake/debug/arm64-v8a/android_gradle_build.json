@@ -1,23 +1,23 @@
 {
   "stringTable": {
     "0": "/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a",
-    "1": "--target=aarch64-none-linux-android21 --gcc-toolchain=/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64 --sysroot=/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dyuvutil_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security -O0 -fno-limit-debug-info -fno-experimental-isel -fPIC"
+    "1": "--target=aarch64-none-linux-android21 --gcc-toolchain=/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64 --sysroot=/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dyuvutil_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security -O0 -fno-limit-debug-info -fno-experimental-isel -fPIC"
   },
   "buildFiles": [
     "/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/CMakeLists.txt",
-    "/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/build/cmake/android.toolchain.cmake",
-    "/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/build/cmake/platforms.cmake",
+    "/Library/Android/sdk/ndk/20.1.5948944/build/cmake/android.toolchain.cmake",
+    "/Library/Android/sdk/ndk/20.1.5948944/build/cmake/platforms.cmake",
     "/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/src/main/cpp/yuvutil/CMakeLists.txt"
   ],
   "cleanCommands": [
-    "/Users/Gain/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja -C \"/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a\" clean"
+    "/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja -C \"/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a\" clean"
   ],
-  "buildTargetsCommand": "/Users/Gain/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja  -C \"/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a\" {LIST_OF_TARGETS_TO_BUILD}",
+  "buildTargetsCommand": "/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja  -C \"/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a\" {LIST_OF_TARGETS_TO_BUILD}",
   "libraries": {
     "yuvutil-Debug-arm64-v8a": {
-      "buildCommand": "/Users/Gain/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja -C \"/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a\" yuvutil",
+      "buildCommand": "/Library/Android/sdk/cmake/3.10.2.4988404/bin/ninja -C \"/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/.cxx/cmake/debug/arm64-v8a\" yuvutil",
       "buildType": "debug",
-      "toolchain": "1075290028",
+      "toolchain": "4130243297",
       "abi": "arm64-v8a",
       "artifactName": "yuvutil",
       "files": [
@@ -33,8 +33,8 @@
     }
   },
   "toolchains": {
-    "1075290028": {
-      "cppCompilerExecutable": "/Users/Gain/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++"
+    "4130243297": {
+      "cppCompilerExecutable": "/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++"
     }
   },
   "cFileExtensions": [],

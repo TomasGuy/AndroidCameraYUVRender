@@ -18,17 +18,19 @@ package com.example.android.camera2.basic.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.SurfaceTexture
+import android.graphics.*
 import android.hardware.camera2.*
+import android.media.Image
 import android.media.ImageReader
 import android.opengl.GLSurfaceView
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.*
-import android.view.TextureView.SurfaceTextureListener
+import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
@@ -36,17 +38,27 @@ import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
 import com.example.android.camera.utils.OrientationLiveData
+import com.example.android.camera.utils.YuvUtil
+import com.example.android.camera.utils.computeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
+import com.example.android.camera2.basic.CameraActivity
 import com.example.android.camera2.basic.R
 import com.example.android.camera2basic.CameraGLSurfaceView
-import com.example.android.camera2basic.CameraTextureView
-import com.example.android.camera.utils.renderer.OesRenderer
+import com.gain.longexposure.renderer.OesRenderer
 import kotlinx.android.synthetic.main.fragment_camera.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.io.Closeable
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -75,18 +87,28 @@ class CameraFragment : Fragment() {
     /** Readers used as buffers for camera still shots */
     private lateinit var imageReader: ImageReader
     private lateinit var previewSurface: Surface
-    private lateinit var previewSurfaceTexture: SurfaceTexture
 
     private lateinit var yByteBuff:ByteBuffer
     private lateinit var uvByteBuff:ByteBuffer
-
-    private var yuvRenderFlag = false
 
     /** [HandlerThread] where all camera operations run */
     private val cameraThread = HandlerThread("CameraThread").apply { start() }
 
     /** [Handler] corresponding to [cameraThread] */
     private val cameraHandler = Handler(cameraThread.looper)
+
+    /** Performs recording animation of flashing screen */
+    private val animationTask: Runnable by lazy {
+        Runnable {
+            // Flash white animation
+            overlay.background = Color.argb(150, 255, 255, 255).toDrawable()
+            // Wait for ANIMATION_FAST_MILLIS
+            overlay.postDelayed({
+                // Remove white flash animation
+                overlay.background = null
+            }, CameraActivity.ANIMATION_FAST_MILLIS)
+        }
+    }
 
     /** [HandlerThread] where all buffer reading operations run */
     private val imageReaderThread = HandlerThread("imageReaderThread").apply { start() }
@@ -95,9 +117,7 @@ class CameraFragment : Fragment() {
     private val imageReaderHandler = Handler(imageReaderThread.looper)
 
     /** Where the camera preview is displayed */
-    private lateinit var mPreviewView: CameraTextureView
-
-    private lateinit var mYUVGLView: CameraGLSurfaceView
+    private lateinit var mPreviewView: CameraGLSurfaceView
 
     var mRenderer: OesRenderer = OesRenderer()
 
@@ -124,29 +144,46 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         overlay = view.findViewById(R.id.overlay)
         mPreviewView = view.findViewById(R.id.view_finder)
-        mPreviewView.surfaceTextureListener = object: SurfaceTextureListener {
-            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
-            }
+        mPreviewView.setEGLContextClientVersion(3)
+        mPreviewView.setRenderer(mRenderer)
+        mPreviewView.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
 
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-            }
+        mRenderer.registerListener {
+            onSurfaceCreated {
+                mRenderer.surfaceTexture!!.setOnFrameAvailableListener(SurfaceTexture.OnFrameAvailableListener {
+                    Log.i("test", "setOnFrameAvailableListener ${mRenderer.isCapture}")
 
-            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                return true
-            }
+                    //预览直接请求渲染，拍照合成则送完yuv数据后请求
+                    if(mRenderer.isCapture.not()) {
+                        mPreviewView.requestRender()
+                    }
+                })
 
-            override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-                previewSurfaceTexture = surface
                 view.post { initializeCamera() }
+            }
+
+            onFrame {
+//                mPreviewView.requestRender()
+            }
+
+            onRenderDone {
+                Log.i(TAG, "onRenderDone")
+            }
+
+            onPicToken {
+                var file = File(getOutputDirectory(requireContext()), "long_exposure.jpg")
+                saveImage(it, file)
+
+                mRenderer.isCapture = mRenderer.isCapture.not()
+
+                startPreview()
+
+                //手动触发一次刷新
+                mPreviewView.requestRender()
             }
         }
 
-        mYUVGLView = view.findViewById(R.id.yuv_render)
-        mYUVGLView.setEGLContextClientVersion(3)
-        mYUVGLView.setRenderer(mRenderer)
-        mYUVGLView.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-
-        yuv_render_toggle.setOnApplyWindowInsetsListener { v, insets ->
+        capture_button.setOnApplyWindowInsetsListener { v, insets ->
             v.translationX = (-insets.systemWindowInsetRight).toFloat()
             v.translationY = (-insets.systemWindowInsetBottom).toFloat()
             insets.consumeSystemWindowInsets()
@@ -186,8 +223,9 @@ class CameraFragment : Fragment() {
         mRenderer.setDataSize(size)
 
         // Creates list of Surfaces where the camera will output frames
-        previewSurfaceTexture!!.setDefaultBufferSize(previewSize.width, previewSize.height)
-        previewSurface = Surface(previewSurfaceTexture)
+        val texture = mRenderer.surfaceTexture
+        texture!!.setDefaultBufferSize(previewSize.width, previewSize.height)
+        previewSurface = Surface(texture)
 
         val targets = listOf(previewSurface, imageReader.surface)
 
@@ -202,19 +240,55 @@ class CameraFragment : Fragment() {
         session.setRepeatingRequest(captureRequest.build(), null, cameraHandler)
 
         // Listen to the capture button
-        yuv_render_toggle.setOnClickListener {
+        capture_button.setOnClickListener {
 
-            if (yuvRenderFlag) {
-                startPreview()
-            } else {
-                mYUVGLView.visibility = View.VISIBLE
+            // Disable click listener to prevent multiple requests simultaneously in flight
+//            it.isEnabled = false
 
+            if (mRenderer.isCapture) {
+                mRenderer.takePhoto()
+                return@setOnClickListener
+            }
+
+            mRenderer.isCapture = mRenderer.isCapture.not()
+
+            if (mRenderer.isCapture) {
                 lifecycleScope.launch(Dispatchers.Main) {
                     takeLongExposurePhoto()
                 }
             }
 
-            yuvRenderFlag = yuvRenderFlag.not()
+            // Perform I/O heavy operations in a different scope
+            /*lifecycleScope.launch(Dispatchers.IO) {
+                takePhoto().use { result ->
+                    Log.d(TAG, "Result received: $result")
+
+                    // Save the result to disk
+                    val output = saveResult(result)
+                    Log.d(TAG, "Image saved: ${output.absolutePath}")
+
+                    // If the result is a JPEG file, update EXIF metadata with orientation info
+                    if (output.extension == "jpg") {
+                        val exif = ExifInterface(output.absolutePath)
+                        exif.setAttribute(
+                                ExifInterface.TAG_ORIENTATION, result.orientation.toString())
+                        exif.saveAttributes()
+                        Log.d(TAG, "EXIF metadata saved: ${output.absolutePath}")
+                    }
+
+                    // Display the photo taken to user
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        navController.navigate(CameraFragmentDirections
+                                .actionCameraToJpegViewer(output.absolutePath)
+                                .setOrientation(result.orientation)
+                                .setDepth(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                                        result.format == ImageFormat.DEPTH_JPEG))
+                    }
+                }
+
+                // Re-enable click listener after photo is taken
+                it.post { it.isEnabled = true }
+            }*/
         }
     }
 
@@ -290,11 +364,12 @@ class CameraFragment : Fragment() {
             val height = image.height
             Log.d(TAG, "Image available stride:$stride  width:$width    height:$height")
 
-            if(stride!=0&&stride!=width) {
-                width = stride
-            }
+            val isAlign = true
 
-            mYUVGLView.setAspectRatio(Size(width, height))
+            if(isAlign) {
+                width = stride
+                mPreviewView.setAspectRatio(Size(width, height))
+            }
 
             mRenderer.setDataSize(Size(width, height))
             mRenderer.rotation = 90
@@ -310,15 +385,28 @@ class CameraFragment : Fragment() {
             yByteBuff.clear()
             uvByteBuff.clear()
 
-            yByteBuff.put(image.planes[0].buffer)
-            yByteBuff.position(0)
-            uvByteBuff.put(image.planes[2].buffer)
-            uvByteBuff.position(0)
-            mRenderer.renderYUV(yByteBuff, uvByteBuff)
+            if(isAlign) {
+                //对齐实现(有绿边)
+                yByteBuff.put(image.planes[0].buffer)
+                yByteBuff.position(0)
+                uvByteBuff.put(image.planes[2].buffer)
+                uvByteBuff.position(0)
+                mRenderer.renderYUV(yByteBuff, uvByteBuff)
+            } else {
+                //未对齐实现
+                var yuvData = getYUVData(image)
+                yByteBuff.put(yuvData, 0, width * height)
+                yByteBuff.position(0)
+                uvByteBuff.put(yuvData, width * height, width * height / 2)
+                uvByteBuff.position(0)
+                mRenderer.renderYUV(yByteBuff, uvByteBuff)
+            }
 
             image.close()
 
-            mYUVGLView.requestRender()
+            if(mRenderer.isCapture) {
+                mPreviewView.requestRender()
+            }
 
         }, imageReaderHandler)
 
@@ -330,10 +418,139 @@ class CameraFragment : Fragment() {
     }
 
     private fun startPreview() {
+        Log.d("test", "startPreview")
         val captureRequest = session.device.createCaptureRequest(
                 CameraDevice.TEMPLATE_PREVIEW).apply { addTarget(previewSurface)}
 
         session.setRepeatingRequest(captureRequest.build(), null, cameraHandler)
+    }
+
+    /**
+     * Helper function used to capture a still image using the [CameraDevice.TEMPLATE_STILL_CAPTURE]
+     * template. It performs synchronization between the [CaptureResult] and the [Image] resulting
+     * from the single capture, and outputs a [CombinedCaptureResult] object.
+     */
+    private suspend fun takePhoto():
+            CombinedCaptureResult = suspendCoroutine { cont ->
+
+        // Flush any images left in the image reader
+        @Suppress("ControlFlowWithEmptyBody")
+        while (imageReader.acquireNextImage() != null) {}
+
+        // Start a new image queue
+        val imageQueue = ArrayBlockingQueue<Image>(IMAGE_BUFFER_SIZE)
+        imageReader.setOnImageAvailableListener({ reader ->
+            val image = reader.acquireNextImage()
+            Log.d(TAG, "Image available in queue: ${image.timestamp}")
+            imageQueue.add(image)
+        }, imageReaderHandler)
+
+        val captureRequest = session.device.createCaptureRequest(
+                CameraDevice.TEMPLATE_STILL_CAPTURE).apply { addTarget(imageReader.surface) }
+        session.capture(captureRequest.build(), object : CameraCaptureSession.CaptureCallback() {
+
+            override fun onCaptureStarted(
+                    session: CameraCaptureSession,
+                    request: CaptureRequest,
+                    timestamp: Long,
+                    frameNumber: Long) {
+                super.onCaptureStarted(session, request, timestamp, frameNumber)
+                mPreviewView.post(animationTask)
+            }
+
+            override fun onCaptureCompleted(
+                    session: CameraCaptureSession,
+                    request: CaptureRequest,
+                    result: TotalCaptureResult) {
+                super.onCaptureCompleted(session, request, result)
+                val resultTimestamp = result.get(CaptureResult.SENSOR_TIMESTAMP)
+                Log.d(TAG, "Capture result received: $resultTimestamp")
+
+                // Set a timeout in case image captured is dropped from the pipeline
+                val exc = TimeoutException("Image dequeuing took too long")
+                val timeoutRunnable = Runnable { cont.resumeWithException(exc) }
+                imageReaderHandler.postDelayed(timeoutRunnable, IMAGE_CAPTURE_TIMEOUT_MILLIS)
+
+                // Loop in the coroutine's context until an image with matching timestamp comes
+                // We need to launch the coroutine context again because the callback is done in
+                //  the handler provided to the `capture` method, not in our coroutine context
+                @Suppress("BlockingMethodInNonBlockingContext")
+                lifecycleScope.launch(cont.context) {
+                    while (true) {
+
+                        // Dequeue images while timestamps don't match
+                        val image = imageQueue.take()
+                        // TODO(owahltinez): b/142011420
+                        // if (image.timestamp != resultTimestamp) continue
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                                image.format != ImageFormat.DEPTH_JPEG &&
+                                image.timestamp != resultTimestamp) continue
+                        Log.d(TAG, "Matching image dequeued: ${image.timestamp}")
+
+                        // Unset the image reader listener
+                        imageReaderHandler.removeCallbacks(timeoutRunnable)
+                        imageReader.setOnImageAvailableListener(null, null)
+
+                        // Clear the queue of images, if there are left
+                        while (imageQueue.size > 0) {
+                            imageQueue.take().close()
+                        }
+
+                        // Compute EXIF orientation metadata
+                        val rotation = relativeOrientation.value ?: 0
+                        val mirrored = characteristics.get(CameraCharacteristics.LENS_FACING) ==
+                                CameraCharacteristics.LENS_FACING_FRONT
+                        val exifOrientation = computeExifOrientation(rotation, mirrored)
+
+                        // Build the result and resume progress
+                        cont.resume(CombinedCaptureResult(
+                                image, result, exifOrientation, imageReader.imageFormat))
+
+                        // There is no need to break out of the loop, this coroutine will suspend
+                    }
+                }
+            }
+        }, cameraHandler)
+    }
+
+    /** Helper function used to save a [CombinedCaptureResult] into a [File] */
+    private suspend fun saveResult(result: CombinedCaptureResult): File = suspendCoroutine { cont ->
+        when (result.format) {
+
+            // When the format is JPEG or DEPTH JPEG we can simply save the bytes as-is
+            ImageFormat.JPEG, ImageFormat.DEPTH_JPEG -> {
+                val buffer = result.image.planes[0].buffer
+                val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
+                try {
+                    val output = createFile(requireContext(), "jpg")
+                    FileOutputStream(output).use { it.write(bytes) }
+                    cont.resume(output)
+                } catch (exc: IOException) {
+                    Log.e(TAG, "Unable to write JPEG image to file", exc)
+                    cont.resumeWithException(exc)
+                }
+            }
+
+            // When the format is RAW we use the DngCreator utility library
+            ImageFormat.RAW_SENSOR -> {
+                val dngCreator = DngCreator(characteristics, result.metadata)
+                try {
+                    val output = createFile(requireContext(), "dng")
+                    FileOutputStream(output).use { dngCreator.writeImage(it, result.image) }
+                    cont.resume(output)
+                } catch (exc: IOException) {
+                    Log.e(TAG, "Unable to write DNG image to file", exc)
+                    cont.resumeWithException(exc)
+                }
+            }
+
+            // No other formats are supported by this sample
+            else -> {
+                val exc = RuntimeException("Unknown image format: ${result.image.format}")
+                Log.e(TAG, exc.message, exc)
+                cont.resumeWithException(exc)
+            }
+        }
     }
 
     override fun onStop() {
@@ -351,10 +568,111 @@ class CameraFragment : Fragment() {
         imageReaderThread.quitSafely()
     }
 
+    fun saveImage(imageBitmap: Bitmap, file: File) {
+        var output: FileOutputStream? = null
+        try {
+            output = FileOutputStream(file)
+            imageBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Log.e("GLSL", "saveImage error", e)
+        } finally {
+            if (null != output) {
+                try {
+                    output.close()
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    fun saveImage(imageBitmap: ByteArray, file: File) {
+        var output: FileOutputStream? = null
+        try {
+            output = FileOutputStream(file)
+            output!!.write(imageBitmap)
+//            imageBitmap.compressToJpeg(Rect(0, 0, imageBitmap.width, imageBitmap.height), 97, output)
+//            imageBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Log.e("GLSL", "saveImage error", e)
+        } finally {
+            if (null != output) {
+                try {
+                    output.close()
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    private fun getYUVData(yuvImage: Image): ByteArray {
+        var yuvData: ByteBuffer? = null
+        val stride = yuvImage.planes[0].rowStride
+        val width = yuvImage.width
+        val height = yuvImage.height
+        val originWidth = width
+        Log.i("GLSL", "stride == width:" + (stride == width))
+        yuvData = ByteBuffer.allocate(stride * height * 3 / 2)
+        yuvData.put(yuvImage.planes[0].buffer)
+                .put(yuvImage.planes[2].buffer)
+        val buf = yuvData.array()
+        YuvUtil.convertNv21torealyuv(buf, width, height, stride, false)
+        var yBuf = ByteBuffer.allocateDirect(width * height);
+        yBuf.clear();
+        yBuf.position(0);
+        yBuf.put(buf, 0, width * height).position(0);
+        var vuBuf = ByteBuffer.allocateDirect(width * height / 2);
+        vuBuf.clear();
+        vuBuf.position(0);
+        vuBuf.put(buf, width * height, width * height / 2).position(0);
+
+        yuvData.position(0);
+        yuvData.put(yBuf).put(vuBuf);
+        var yuvBytes = yuvData.array();
+        yBuf.clear();
+        vuBuf.clear();
+        return yuvBytes
+    }
+
     companion object {
         private val TAG = CameraFragment::class.java.simpleName
 
         /** Maximum number of images that will be held in the reader's buffer */
         private const val IMAGE_BUFFER_SIZE: Int = 3
+
+        /** Maximum time allowed to wait for the result of an image capture */
+        private const val IMAGE_CAPTURE_TIMEOUT_MILLIS: Long = 5000
+
+        /** Helper data class used to hold capture metadata with their associated image */
+        data class CombinedCaptureResult(
+                val image: Image,
+                val metadata: CaptureResult,
+                val orientation: Int,
+                val format: Int
+        ) : Closeable {
+            override fun close() = image.close()
+        }
+
+        /**
+         * Create a [File] named a using formatted timestamp with the current date and time.
+         *
+         * @return [File] created.
+         */
+        private fun createFile(context: Context, extension: String): File {
+            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+            return File(context.filesDir, "IMG_${sdf.format(Date())}.$extension")
+        }
+
+        fun getOutputDirectory(context: Context): File {
+            val appContext = context.applicationContext
+            val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
+                File(it, appContext.resources.getString(R.string.app_name)).apply { mkdirs() }
+            }
+            return if (mediaDir != null && mediaDir.exists())
+                mediaDir else appContext.filesDir
+        }
     }
 }

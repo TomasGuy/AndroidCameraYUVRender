@@ -19,16 +19,14 @@ package com.example.android.camera2.basic.fragments
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.ImageFormat
-import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
-import android.hardware.camera2.CameraMetadata
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.navigation.NavDirections
 import androidx.navigation.Navigation
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -53,15 +51,18 @@ class SelectorFragment : Fragment() {
             val cameraManager =
                     requireContext().getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
-            val cameraList = enumerateCameras(cameraManager)
+            val cameraList = enumerateContent()
 
             val layoutId = android.R.layout.simple_list_item_1
             adapter = GenericListAdapter(cameraList, itemLayoutId = layoutId) { view, item, _ ->
                 view.findViewById<TextView>(android.R.id.text1).text = item.title
                 view.setOnClickListener {
-                    Navigation.findNavController(requireActivity(), R.id.fragment_container)
+                    /*Navigation.findNavController(requireActivity(), R.id.fragment_container)
                             .navigate(SelectorFragmentDirections.actionSelectorToCamera(
-                                    item.cameraId, item.format))
+                                    item.cameraId, item.format))*/
+
+                    Navigation.findNavController(requireActivity(), R.id.fragment_container)
+                            .navigate(item.nav)
                 }
             }
         }
@@ -69,52 +70,15 @@ class SelectorFragment : Fragment() {
 
     companion object {
 
-        /** Helper class used as a data holder for each selectable camera format item */
-        private data class FormatItem(val title: String, val cameraId: String, val format: Int)
+        private data class ContentItem(val title: String, val nav: NavDirections)
 
-        /** Helper function used to convert a lens orientation enum into a human-readable string */
-        private fun lensOrientationString(value: Int) = when(value) {
-            CameraCharacteristics.LENS_FACING_BACK -> "Back"
-            CameraCharacteristics.LENS_FACING_FRONT -> "Front"
-            CameraCharacteristics.LENS_FACING_EXTERNAL -> "External"
-            else -> "Unknown"
-        }
+        private fun enumerateContent(): List<ContentItem> {
+            val availableContents: MutableList<ContentItem> = mutableListOf()
 
-        /** Helper function used to list all compatible cameras and supported pixel formats */
-        @SuppressLint("InlinedApi")
-        private fun enumerateCameras(cameraManager: CameraManager): List<FormatItem> {
-            val availableCameras: MutableList<FormatItem> = mutableListOf()
+            availableContents.add(ContentItem("YUV Render", SelectorFragmentDirections.actionSelectorToYuv()))
+            availableContents.add(ContentItem("MultiScreen", SelectorFragmentDirections.actionSelectorToMultiScreen()))
 
-            // Get list of all compatible cameras
-            val cameraIds = cameraManager.cameraIdList.filter {
-                val characteristics = cameraManager.getCameraCharacteristics(it)
-                val capabilities = characteristics.get(
-                        CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
-                capabilities?.contains(
-                        CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE) ?: false
-            }
-
-
-            // Iterate over the list of cameras and return all the compatible ones
-            cameraIds.forEach { id ->
-                val characteristics = cameraManager.getCameraCharacteristics(id)
-                val orientation = lensOrientationString(
-                        characteristics.get(CameraCharacteristics.LENS_FACING)!!)
-
-                // Query the available capabilities and output formats
-                val capabilities = characteristics.get(
-                        CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)!!
-                val outputFormats = characteristics.get(
-                        CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!.outputFormats
-
-                // Return cameras that support YUV capability
-                if (outputFormats.contains(ImageFormat.YUV_420_888)) {
-                    availableCameras.add(FormatItem(
-                            "$orientation YUV ($id)", id, ImageFormat.YUV_420_888))
-                }
-            }
-
-            return availableCameras
+            return availableContents
         }
     }
 }

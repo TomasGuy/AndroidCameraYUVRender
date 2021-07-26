@@ -18,6 +18,7 @@ class CameraGLSurfaceView constructor(context: Context,
         mRatioWidth = size.width.coerceAtMost(size.height)
         mRatioHeight = size.width.coerceAtLeast(size.height)
         post { requestLayout() }
+
     }
 
     protected override fun onMeasure(widthMeasureSpec:Int, heightMeasureSpec:Int) {

@@ -43,6 +43,28 @@
             app:launchSingleTop="true"
             app:destination="@id/camera_fragment" />
 
+        <action
+                android:id="@+id/action_selector_to_yuv"
+                app:launchSingleTop="true"
+                app:destination="@id/yuv_fragment" />
+
+        <action
+                android:id="@+id/action_selector_to_multi_screen"
+                app:launchSingleTop="true"
+                app:destination="@id/multi_screen_fragment" />
+
+    </fragment>
+
+    <fragment
+            android:id="@+id/yuv_fragment"
+            android:name="com.example.android.camera2.basic.fragments.YUVRenderFragment"
+            android:label="YUVRenderFragment" >
+    </fragment>
+
+    <fragment
+            android:id="@+id/multi_screen_fragment"
+            android:name="com.example.android.camera2.basic.fragments.MultiScreenFragment"
+            android:label="MultiScreenFragment" >
     </fragment>
 
     <fragment

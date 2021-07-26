@@ -19,7 +19,7 @@
   },
   {
     "level": "INFO",
-    "message": "- CMake found in SDK at \u0027/Users/Gain/Library/Android/sdk/cmake/3.10.2.4988404\u0027 had version \u00273.10.2\u0027",
+    "message": "- CMake found in SDK at \u0027/Library/Android/sdk/cmake/3.10.2.4988404\u0027 had version \u00273.10.2\u0027",
     "file": "/Users/Gain/job/code/github/AndroidCameraYUVRender/utils/CMakeLists.txt",
     "tag": "debug|arm64-v8a"
   },

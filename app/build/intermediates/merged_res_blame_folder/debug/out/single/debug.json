@@ -1,5 +1,13 @@
 [
     {
+        "merged": "/Users/Gain/job/code/github/AndroidCameraYUVRender/app/build/intermediates/res/merged/debug/layout_fragment_yuv.xml.flat",
+        "source": "/Users/Gain/job/code/github/AndroidCameraYUVRender/app/src/main/res/layout/fragment_yuv.xml"
+    },
+    {
+        "merged": "/Users/Gain/job/code/github/AndroidCameraYUVRender/app/build/intermediates/res/merged/debug/layout_fragment_multi_screen.xml.flat",
+        "source": "/Users/Gain/job/code/github/AndroidCameraYUVRender/app/src/main/res/layout/fragment_multi_screen.xml"
+    },
+    {
         "merged": "/Users/Gain/job/code/github/AndroidCameraYUVRender/app/build/intermediates/res/merged/debug/drawable_ic_photo.xml.flat",
         "source": "/Users/Gain/job/code/github/AndroidCameraYUVRender/app/src/main/res/drawable/ic_photo.xml"
     },
